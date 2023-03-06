@@ -1,7 +1,7 @@
 const MONGOOSE = require("mongoose");
 
 const UsersSchema = new MONGOOSE.Schema({
-    phoneNo: { type: Number, required: true },
+    phoneNo: { type: Number, unique: true, required: true },
     password: { type: String, required: true },
     token: { type: String }
 });
