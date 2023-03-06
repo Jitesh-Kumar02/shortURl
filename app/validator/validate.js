@@ -41,6 +41,17 @@ const addNewMatchSchema = Joi.object({
     firstBattingTeam: Joi.number().valid(1, 2).required(),
 });
 
+const signupUserSchema = Joi.object({
+    phoneNo: Joi.number().integer().min(10 ** 9).max(10 ** 10 - 1).required(),
+    password: Joi.string().min(8).required(),
+    confirmPassword: Joi.string().required().valid(Joi.ref('password')),
+});
+
+const loginUserSchema = Joi.object({
+    phoneNo: Joi.number().integer().min(10 ** 9).max(10 ** 10 - 1).required(),
+    password: Joi.string().min(8).required(),
+});
+
 const validateAll = (req, res, next, schema) => {
     try {
         const result = schema.validate(req.body);
@@ -73,6 +84,14 @@ validate.validateAddNewMatch = (req, res, next) => {
 
 validate.validateCreateNewPlayer = (req, res, next) => {
     validateAll(req, res, next, createNewPlayerSchema);
+}
+
+validate.validateSignupUser = (req, res, next) => {
+    validateAll(req, res, next, signupUserSchema);
+}
+
+validate.validateLoginUser = (req, res, next) => {
+    validateAll(req, res, next, loginUserSchema);
 }
 
 module.exports = validate;

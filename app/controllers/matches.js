@@ -1,6 +1,6 @@
 let matchesLogic = {};
 
-const { default: mongoose } = require("mongoose");
+const { default: mongoose, set } = require("mongoose");
 const matchCollection = require("../models/matches");
 const playerCollection = require("../models/players");
 
@@ -15,34 +15,19 @@ matchesLogic.addNewMatch = async (req, res) => {
         if(utils.compare(req.body.team1Name, req.body.team2Name)) return res.status(400).send({success: false, error: "Both teams can't be same"});
 
         let match = matchCollection(req.body);
+
+        let newSet = new Set([...req.body.team1Players, ...req.body.team2Players]);
+        if(newSet.size != 22) return res.status(400).send({success: false, error: `Invalid Player ids`});
+
         let array1 = [], array2 = [];
         for(let index = 0; index < 11; index++) {
-            let findPlayer = await service.findOne(playerCollection, {_id: new mongoose.Types.ObjectId(req.body.team1Players[index])});
-            if(!findPlayer) return res.status(400).send({success: false, error: `Invalid Player id ${req.body.team1Players[index]}`});
+            let findPlayer1 = await service.findOne(playerCollection, {_id: new mongoose.Types.ObjectId(req.body.team1Players[index])});
+            if(!findPlayer1) return res.status(400).send({success: false, error: `Invalid Player id ${req.body.team1Players[index]}`});
+            array1.push({playerId: req.body.team1Players[index], playerName: findPlayer1.firstName});
             
-            let flag = array1.some((player) => {
-                return player.playerId == req.body.team1Players[index];
-            });
-            if(flag) return res.status(400).send({success: false, error: `Cannot add ${findPlayer.firstName} (Player ID: ${req.body.team1Players[index]}) twice in Team ${match.team1Name}`});
-
-            array1.push({playerId: req.body.team1Players[index], playerName: findPlayer.firstName});
-        }
-
-        for(let index = 0; index < 11; index++) {
-            let findPlayer = await service.findOne(playerCollection, {_id: new mongoose.Types.ObjectId(req.body.team2Players[index])});
-            if(!findPlayer) return res.status(400).send({success: false, error: `Invalid Player id ${req.body.team2Players[index]}`});
-            
-            let flag = array1.some((player) => {
-                return player.playerId == req.body.team2Players[index];
-            });
-            if(flag) return res.status(400).send({success: false, error: `Cannot add ${findPlayer.firstName} (Player ID: ${req.body.team2Players[index]}) as it is present in Team ${match.team1Name}`});
-            
-            flag = array2.some((newPlayerId) => {
-                return newPlayerId.playerId == req.body.team2Players[index];
-            });
-            if(flag) return res.status(400).send({success: false, error: `Cannot add ${findPlayer.firstName} (Player ID: ${req.body.team2Players[index]}) twice in Team ${match.team2Name}`});
-            
-            array2.push({playerId: req.body.team2Players[index], playerName: findPlayer.firstName});
+            let findPlayer2 = await service.findOne(playerCollection, {_id: new mongoose.Types.ObjectId(req.body.team2Players[index])});
+            if(!findPlayer2) return res.status(400).send({success: false, error: `Invalid Player id ${req.body.team2Players[index]}`});
+            array2.push({playerId: req.body.team2Players[index], playerName: findPlayer2.firstName});
         }
         match.team1Players = array1;
         match.team2Players = array2;
@@ -82,7 +67,7 @@ matchesLogic.selectNextBowler = async (req, res) => {
         if(lastBall2 && lastBall2.bowlerId == req.body.newBowlerId) return res.status(400).send({success: false, error: "You can not choose the same bolwer again"});
 
         // update last ball
-        utils.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.bowlerId`]: req.body.newBowlerId}});
+        service.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.bowlerId`]: req.body.newBowlerId}});
         
         return res.status(200).send({success: true, message: "Bowler selected successfully"});
     } catch(err) {
@@ -135,9 +120,9 @@ matchesLogic.selectNextBatsman = async (req, res) => {
             if(lastBall.playerOnStrikeId == req.body.newBatsmanId1 || lastBall.playerOnNonStrikeId == req.body.newBatsmanId1) return res.status(400).send({success: false, error: `Player with id ${req.body.newBatsmanId1} is already on field`});
 
             if(!lastBall.playerOnStrikeId) {
-                utils.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.playerOnStrikeId`]: req.body.newBatsmanId1}});
+                service.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.playerOnStrikeId`]: req.body.newBatsmanId1}});
             } else if(!lastBall.playerOnNonStrikeId) {
-                utils.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.playerOnNonStrikeId`]: req.body.newBatsmanId1}});
+                service.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.playerOnNonStrikeId`]: req.body.newBatsmanId1}});
             }
 
             return res.status(200).send({success: true, message: "Player selected successfully"});
@@ -181,21 +166,21 @@ matchesLogic.undoUpdateScore = async (req, res) => {
             // Removing current ball
             let lastBallId = req.match[scoreCardTeam][req.match[scoreCardTeam].length-1]._id;
             
-            await service.findOneAndUpdate(matchCollection, { _id: new mongoose.Types.ObjectId(req.body.matchId) }, { $pull: { [`${scoreCardTeam}`]: { _id: lastBallId}}});
+            await service.findOneAndUpdate(matchCollection, { _id: new mongoose.Types.ObjectId(req.body.matchId)}, { $pull: { [`${scoreCardTeam}`]: { _id: lastBallId}}});
             
             lastBall = req.match[scoreCardTeam][req.match[scoreCardTeam].length-2];
         }
         
         // update team runs
-        utils.updateTeamRuns(req.body.matchId, matchCollection, teamNo, lastBall.validity == "valid" ? lastBall.runs : lastBall.runs+1, -1);
+        service.updateTeamRuns(req.body.matchId, matchCollection, teamNo, lastBall.validity == "valid" ? lastBall.runs : lastBall.runs+1, -1);
         
         let decWicketsBowler = 0;
         if(lastBall.wicketPlayerId && lastBall.wicketPlayerId == req.match[teamFallOfWickets][req.match[teamFallOfWickets].length-1]) {
             if(lastBall.wicketType != "runout" && lastBall.wicketType != "hitWicket") decWicketsBowler = -1;
             // update wickets of batsman
-            utils.updateWicketsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.wicketPlayerId, false);
+            service.updateWicketsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.wicketPlayerId, false);
             // update wicket player id in teamFallOfWickets
-            utils.updateTeamFallOfWickets(req.body.matchId, matchCollection, teamNo, lastBall.wicketPlayerId, false);
+            service.updateTeamFallOfWickets(req.body.matchId, matchCollection, teamNo, lastBall.wicketPlayerId, false);
         }
 
 
@@ -205,13 +190,13 @@ matchesLogic.undoUpdateScore = async (req, res) => {
         if(lastBall.validity != "wide") decBallsFaced = -1;
         if(!lastBall.byes) {decRunsBowler -= lastBall.runs; decRunsBatman = lastBall.runs;}
         // update balls faced and runs of batsman
-        utils.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, decBallsFaced, decRunsBatman);
+        service.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, decBallsFaced, lastBall.validity == "wide" ? 0 : decRunsBatman);
         // update runs and balls and wickets of bowler
-        utils.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, decBallsBowled, decRunsBowler, decWicketsBowler);
+        service.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, decBallsBowled, decRunsBowler, decWicketsBowler);
         
 
         // update last ball
-        utils.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {byes: false, runs: undefined, validity: undefined, wicketType: undefined, wicketPlayerId: undefined}});
+        service.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {byes: false, runs: undefined, validity: undefined, wicketType: undefined, wicketPlayerId: undefined}});
 
         matchesLogic.updateScore(req, res);
     } catch(err) {
@@ -224,6 +209,8 @@ matchesLogic.undoUpdateScore = async (req, res) => {
 // update score
 matchesLogic.updateScore = async (req, res) => {
     try {
+        req.match = await service.findOne(matchCollection, {_id: req.body.matchId});
+
         let scoreCardTeam, teamNo, teamName, runs = req.body.runs, validity = req.body.validity, wicketType = req.body.wicketType;
         
         if(req.match.firstTeamBattingComplete) {
@@ -254,7 +241,7 @@ matchesLogic.updateScore = async (req, res) => {
         let wicketsBowler = 0, wicketBatsmanId, ballsBowled = 0, ballsFaced = 1, nextBallFreeHit = false, newPlayerOnStrikeId = lastBall.playerOnStrikeId, newPlayerOnNonStrikeId = lastBall.playerOnNonStrikeId;
         if((validity == "noball" || lastBall.freeHit) && wicketType != "runout") {
             wicketType = undefined;
-            wicketPlayerId = undefined;
+            req.body.wicketPlayerId = undefined;
         }
         if(validity == "valid") {
             ballsBowled = 1;
@@ -291,31 +278,31 @@ matchesLogic.updateScore = async (req, res) => {
         }
         if(!wicketBatsmanId) {
             wicketType = undefined;
-            wicketPlayerId = undefined;
+            req.body.wicketPlayerId = undefined;
         }
         else {
-            utils.updateTeamFallOfWickets(req.body.matchId, matchCollection, teamNo, wicketBatsmanId, true);
-            utils.updateWicketsBatsman(req.body.matchId, matchCollection, teamNo, wicketBatsmanId, true);
+            service.updateTeamFallOfWickets(req.body.matchId, matchCollection, teamNo, wicketBatsmanId, true);
+            service.updateWicketsBatsman(req.body.matchId, matchCollection, teamNo, wicketBatsmanId, true);
         }
 
 
         // update team runs
-        utils.updateTeamRuns(req.body.matchId, matchCollection, teamNo, validity == "valid" ? runs : runs+1, 1);
+        service.updateTeamRuns(req.body.matchId, matchCollection, teamNo, validity == "valid" ? runs : runs+1, 1);
         
         // update runs and balls and wickets of bowler and batsman
         if(!req.body.byes) {
-            utils.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, (validity == "valid" ? runs : runs+1), wicketsBowler);
+            service.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, (validity == "valid" ? runs : runs+1), wicketsBowler);
 
-            utils.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, validity == "wide" ? 0 : runs);
+            service.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, validity == "wide" ? 0 : runs);
         } else {
-            utils.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, 0, 0);
+            service.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, 0, 0);
             
-            utils.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, 0);
+            service.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, 0);
         }
 
 
         // update lastBall
-        utils.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.validity`]: validity, [`${scoreCardTeam}.$.runs`]: runs, [`${scoreCardTeam}.$.byes`]: (req.body.byes) ? true : false, [`${scoreCardTeam}.$.wicketType`]: wicketType, [`${scoreCardTeam}.$.wicketPlayerId`]: wicketBatsmanId}});
+        service.updateBall(req.body.matchId, matchCollection, scoreCardTeam, lastBall._id, {$set: {[`${scoreCardTeam}.$.validity`]: validity, [`${scoreCardTeam}.$.runs`]: runs, [`${scoreCardTeam}.$.byes`]: (req.body.byes) ? true : false, [`${scoreCardTeam}.$.wicketType`]: wicketType, [`${scoreCardTeam}.$.wicketPlayerId`]: wicketBatsmanId}});
         
 
         // Strike rotate

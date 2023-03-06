@@ -7,11 +7,13 @@ const app = express();
 
 const playersRoute = require("./app/routes/players");
 const matchesRoute = require("./app/routes/matches");
+const usersRoute = require("./app/routes/users");
 
 app.use(cors());
 app.use(express.json());
 app.use("/players", playersRoute);
 app.use("/matches", matchesRoute);
+app.use("/users", usersRoute);
 
 const port = process.env.PORT || 8000;
 app.listen(port, () => {
