@@ -67,7 +67,7 @@ service.updateTeamRuns = async (findById, collection, teamNo, runs, multiply) =>
 // update ball using ball id
 service.updateBall = async (findById, collection, scoreCardTeam, ballId, change) => {
     try {
-        await service.findOneAndUpdate(collection, {_id: new mongoose.Types.ObjectId(findById), [`${scoreCardTeam}._id`]: new mongoose.Types.ObjectId(ballId) }, change);
+        await service.findOneAndUpdate(collection, {_id: new mongoose.Types.ObjectId(findById), [`${scoreCardTeam}._id`]: ballId }, change);
     } catch (err) {
         return;
     }
