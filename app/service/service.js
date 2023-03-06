@@ -6,6 +6,10 @@ service.save = (item) => {
     return item.save();
 };
 
+service.find = (collection, search) => {
+    return collection.find(search);
+}
+
 service.findOne = (collection, search) => {
     return collection.findOne(search);
 }

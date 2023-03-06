@@ -5,6 +5,25 @@ const userCollection = require("../models/users");
 let service = require("../service/service");
 let utils = require("../utils/utils");
 
+// fetch users
+usersLogic.fetch = async (req, res) => {
+    try {
+        let users = await userCollection.aggregate([
+            {
+                $addFields: {id: "$_id"}
+            },
+            {
+                $project: {"_id": 0, "__v": 0}
+            }
+        ]);
+    
+        return res.status(200).send({success: true, users});
+    } catch(err) {
+        return res.status(500).send({success: false, error: err.message || "Internal server error"});
+    }
+};
+
+// users signup
 usersLogic.signup = async (req, res) => {
     try {
         let findUser = await service.findOne(userCollection, {phoneNo: req.body.phoneNo});
@@ -21,6 +40,7 @@ usersLogic.signup = async (req, res) => {
     }
 }
 
+// users login
 usersLogic.login = async (req, res) => {
     try {
         let findUser = await service.findOne(userCollection, {phoneNo: req.body.phoneNo});

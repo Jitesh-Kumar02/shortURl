@@ -295,7 +295,7 @@ matchesLogic.updateScore = async (req, res) => {
 
             service.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, validity == "wide" ? 0 : runs);
         } else {
-            service.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, 0, 0);
+            service.updateBallsRunsWicketsBowler(req.body.matchId, matchCollection, scoreCardTeam, lastBall.bowlerId, ballsBowled, (validity == "valid" ? 0 : 1), 0);
             
             service.updateBallsRunsBatsman(req.body.matchId, matchCollection, teamNo, lastBall.playerOnStrikeId, ballsFaced, 0);
         }
@@ -340,7 +340,7 @@ matchesLogic.updateScore = async (req, res) => {
             return res.status(200).send({success: true, message});
         }
         
-
+        
         // add new ball
         if(validity == "noball") nextBallFreeHit = true;
         await service.findOneAndUpdate(matchCollection, {_id: new mongoose.Types.ObjectId(req.body.matchId)}, {$push: {[`${scoreCardTeam}`]: {playerOnStrikeId: newPlayerOnStrikeId, playerOnNonStrikeId: newPlayerOnNonStrikeId, overNo: nextOverNo, ballNo: nextBallNo, bowlerId: newBowlerId, freeHit: nextBallFreeHit}}});
