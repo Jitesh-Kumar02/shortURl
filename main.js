@@ -4,18 +4,15 @@ const cors = require("cors");
 
 const express = require("express");
 const app = express();
+const server = require('http').Server(app);
 
-const playersRoute = require("./app/routes/players");
-const matchesRoute = require("./app/routes/matches");
-const usersRoute = require("./app/routes/users");
+const urlRoute = require("./app/routes/url");
 
 app.use(cors());
 app.use(express.json());
-app.use("/players", playersRoute);
-app.use("/matches", matchesRoute);
-app.use("/users", usersRoute);
+app.use("/url", urlRoute);
 
 const port = process.env.PORT || 8000;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is running at ${port}`);
 });
